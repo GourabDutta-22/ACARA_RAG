@@ -18,6 +18,15 @@ git checkout main
 git pull origin main
 git checkout -b your-name-feature
 
+
+git checkout your-branch
+git merge main
+
+git checkout your-branch
+git rebase main
+
+
+
 ## Step 3: Make Changes and Commit
 git add .
 git commit -m "Describe your changes"
