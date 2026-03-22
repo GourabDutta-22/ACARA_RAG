@@ -13,3 +13,6 @@ python-dotenv
 sse-starlette
 pymupdf
 python-multipart
+scikit-learn
+numpy
+plotly
