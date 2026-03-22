@@ -9,15 +9,14 @@ import numpy as np
 from sklearn.decomposition import PCA
 import plotly.graph_objects as go
 import json
-from database import vector_store, USE_PINECONE, PINECONE_INDEX_NAME
+from database import _get_vector_store, USE_PINECONE, PINECONE_INDEX_NAME
 
-# ── 1. Load data from ChromaDB ────────────────────────────────────────────────
+# ── 1. Load data from vector store ────────────────────────────────────────────
 def generate_3d_viz():
     if USE_PINECONE:
         print(f"🌲 Fetching data from Pinecone Index: {PINECONE_INDEX_NAME}…")
-        # For visualization, we query the top 100 most recent vectors 
-        # (or just a large sample)
-        results = vector_store.query(
+        store = _get_vector_store()
+        results = store.query(
             vector=[0.1] + [0.0] * 1535, # non-zero dummy vector for Cosine metric
             top_k=100,
             include_metadata=True,
@@ -30,7 +29,8 @@ def generate_3d_viz():
         embeddings = [m.values for m in matches]
     else:
         print("💾 Connecting to Local ChromaDB…")
-        data = vector_store.get(include=["documents", "metadatas", "embeddings"])
+        store = _get_vector_store()
+        data = store.get(include=["documents", "metadatas", "embeddings"])
         ids       = data["ids"]
         docs      = data["documents"]
         metas     = data["metadatas"]
