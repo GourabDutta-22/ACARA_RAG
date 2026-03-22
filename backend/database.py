@@ -29,8 +29,19 @@ def _get_vector_store():
 
     if USE_PINECONE:
         if _pinecone_index is None:
-            from pinecone import Pinecone
+            from pinecone import Pinecone, ServerlessSpec
             pc = Pinecone(api_key=PINECONE_KEY)
+            
+            # Check if index exists, create if missing
+            if PINECONE_INDEX_NAME not in pc.list_indexes().names():
+                print(f"🌲 Creating Pinecone Index: {PINECONE_INDEX_NAME}...")
+                pc.create_index(
+                    name=PINECONE_INDEX_NAME,
+                    dimension=1536, # OpenAI text-embedding-3-small
+                    metric="cosine",
+                    spec=ServerlessSpec(cloud="aws", region="us-east-1")
+                )
+            
             _pinecone_index = pc.Index(PINECONE_INDEX_NAME)
             print(f"🌲 Connected to Pinecone Cloud Index: {PINECONE_INDEX_NAME}")
         return _pinecone_index
