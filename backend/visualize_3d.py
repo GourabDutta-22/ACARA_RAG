@@ -18,7 +18,7 @@ def generate_3d_viz():
         # For visualization, we query the top 100 most recent vectors 
         # (or just a large sample)
         results = vector_store.query(
-            vector=[0.0] * 1536, # dummy vector for broad search
+            vector=[0.1] + [0.0] * 1535, # non-zero dummy vector for Cosine metric
             top_k=100,
             include_metadata=True,
             include_values=True
