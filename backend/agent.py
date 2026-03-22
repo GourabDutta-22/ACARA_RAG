@@ -44,6 +44,7 @@ class AgentState(TypedDict):
     messages: Sequence[BaseMessage]
     question: str
     documents: list
+    original_documents: list          # Original chunks retrieved from DB
     metadatas: list                   # freshness + source per document
     distances: list                   # cosine distances from vector store
     web_fallback: bool
@@ -144,11 +145,15 @@ def grade_documents_node(state: AgentState):
 
     # ── Similarity Check ──────────────────────────────────────────────────
     threshold = arc.similarity_threshold
-    # ChromaDB returns L2 distance; lower = more similar. Convert to similarity:
-    # similarity = 1 / (1 + distance)  (rough proxy)
-    similarity_pass = any(
-        (1 / (1 + d)) >= threshold for d in distances
-    ) if distances else False
+    
+    similarity_pass = False
+    if distances:
+        if USE_PINECONE:
+            # Pinecone: distance = 1 - cosine_score. We want cosine_score >= threshold
+            similarity_pass = any((1 - d) >= threshold for d in distances)
+        else:
+            # ChromaDB L2 distance: lower = more similar
+            similarity_pass = any((1 / (1 + d)) >= threshold for d in distances)
 
     # ── Freshness Check ───────────────────────────────────────────────────
     freshness_ok = True
@@ -206,6 +211,7 @@ def grade_documents_node(state: AgentState):
     return {
         "web_fallback": not context_strong,
         "freshness_ok": freshness_ok,
+        "original_documents": state.get("documents", []), # store existing chunks to prevent deletion by web_search
         "pipeline_steps": steps + ["grade"],
     }
 

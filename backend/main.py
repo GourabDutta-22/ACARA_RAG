@@ -321,13 +321,20 @@ async def upload_pdf_endpoint(background_tasks: BackgroundTasks, file: UploadFil
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ARC Status
+# ARC Status and Reset
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/arc-status", response_model=ARCStatusResponse)
 def arc_status():
     """Returns the current Adaptive Retrieval Controller parameters."""
     params = arc.get_params()
     return ARCStatusResponse(**params)
+
+
+@app.post("/arc/reset")
+def reset_arc():
+    """Resets ARC to default starting parameters for a new chat session."""
+    arc.reset_to_defaults()
+    return {"status": "success", "message": "ARC parameters reset to defaults."}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
