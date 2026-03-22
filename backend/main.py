@@ -13,7 +13,7 @@ from models import (
     ChatRequest, ChatResponse, FeedbackRequest,
     UploadRequest, ARCStatusResponse, StatsResponse, StreamChatRequest,
 )
-from database import feedback_collection, chat_collection, add_document_to_chroma, get_collection_stats
+from database import feedback_collection, chat_collection, add_document_to_vector_store, get_collection_stats, USE_PINECONE
 from arc import arc
 from agent import process_message, get_or_create_queue, emit_event
 from visualize_3d import generate_3d_viz
@@ -240,7 +240,7 @@ def upload_endpoint(request: UploadRequest, background_tasks: BackgroundTasks):
     for chunk in chunks:
         doc_id = str(uuid.uuid4())
         meta = request.metadata or {}
-        add_document_to_chroma(doc_id, chunk, metadata={**meta, "source": "manual_upload"})
+        add_document_to_vector_store(doc_id, chunk, metadata={**meta, "source": "manual_upload"})
         doc_ids.append(doc_id)
 
     background_tasks.add_task(generate_3d_viz)
@@ -303,14 +303,9 @@ async def upload_pdf_endpoint(background_tasks: BackgroundTasks, file: UploadFil
     doc_ids = []
     for chunk in chunks:
         doc_id = str(uuid.uuid4())
-        add_document_to_chroma(
+        add_document_to_vector_store(
             doc_id, chunk,
-            metadata={
-                "source": "pdf_upload",
-                "filename": file.filename,
-                "pages": len(pages_text),
-                "uploaded_at": __import__('datetime').datetime.utcnow().isoformat(),
-            },
+            metadata={"source": "pdf_upload", "filename": file.filename}
         )
         doc_ids.append(doc_id)
 

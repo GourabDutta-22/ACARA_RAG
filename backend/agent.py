@@ -26,12 +26,12 @@ from datetime import datetime, timezone, timedelta
 from typing import TypedDict, Annotated, Sequence, Optional, List
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from pydantic import BaseModel, Field
 from langchain_core.prompts import PromptTemplate
 from langchain_tavily import TavilySearch
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from database import search_chroma, add_document_to_chroma
+from database import search_vector_store, add_document_to_vector_store, USE_PINECONE, embeddings_model
 from arc import arc
 from dotenv import load_dotenv
 
@@ -54,9 +54,6 @@ class AgentState(TypedDict):
     pipeline_steps: List[str]         # ordered list of steps taken
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LLM & Tools
-# ─────────────────────────────────────────────────────────────────────────────
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 class Scorer(BaseModel):
@@ -100,7 +97,12 @@ def retrieve_node(state: AgentState):
     # Adjust chunk size heuristically before querying
     arc.adjust_chunk_size(question)
 
-    results = search_chroma(question, n_results=arc.top_k)
+    # Generate embedding if using Pinecone or for consistent grading
+    query_embedding = None
+    if USE_PINECONE:
+        query_embedding = embeddings_model.embed_query(question)
+
+    results = search_vector_store(question, n_results=arc.top_k, embedding=query_embedding)
     documents = results.get("documents", [[]])[0] or []
     metadatas = results.get("metadatas", [[]])[0] or []
     distances = results.get("distances", [[]])[0] or []
@@ -154,14 +156,14 @@ def grade_documents_node(state: AgentState):
         now = datetime.now(timezone.utc)
         stale_count = 0
         for meta in metadatas:
-            ts_str = meta.get("freshness") if meta else None
-            if ts_str:
+            if meta and meta.get("freshness"):
                 try:
-                    stored_at = datetime.fromisoformat(ts_str)
-                    if (now - stored_at) > timedelta(hours=FRESHNESS_HOURS):
+                    stored_at = datetime.fromisoformat(meta["freshness"])
+                    if (now - stored_at).total_seconds() > FRESHNESS_HOURS * 3600:
                         stale_count += 1
-                except ValueError:
+                except (ValueError, KeyError):
                     pass
+        
         # If more than half the chunks are stale, flag it
         if stale_count > len(metadatas) / 2:
             freshness_ok = False
@@ -295,13 +297,19 @@ def credibility_node(state: AgentState):
     chain = prompt | structured_llm
 
     credible_chunks = []
+    
+    # Batch embed credible chunks to be efficient
+    temp_list = []
+    
     for chunk in chunks:
         result = chain.invoke({"chunk": chunk, "question": question})
         if result.score == "yes":
             credible_chunks.append(chunk)
-            # Memory Update — write credible web chunks into Vector Store
+
+    if credible_chunks:
+        for chunk in credible_chunks:
             doc_id = str(uuid.uuid4())
-            add_document_to_chroma(
+            add_document_to_vector_store(
                 doc_id, chunk,
                 metadata={"source": "web_search_credible", "question": question}
             )

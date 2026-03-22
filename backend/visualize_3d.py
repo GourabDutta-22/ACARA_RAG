@@ -5,24 +5,36 @@ Extracts embeddings from ChromaDB, reduces to 3D via PCA,
 and generates an interactive Plotly 3D scatter in an HTML file.
 """
 
-import chromadb
 import numpy as np
 from sklearn.decomposition import PCA
 import plotly.graph_objects as go
 import json
+from database import vector_store, USE_PINECONE, PINECONE_INDEX_NAME
 
 # ── 1. Load data from ChromaDB ────────────────────────────────────────────────
 def generate_3d_viz():
-    print("🔗 Connecting to ChromaDB…")
-    chroma_client = chromadb.PersistentClient(path="./chroma_db")
-    collection = chroma_client.get_collection(name="documents")
-
-    data = collection.get(include=["documents", "metadatas", "embeddings"])
-
-    ids       = data["ids"]
-    docs      = data["documents"]
-    metas     = data["metadatas"]
-    embeddings = data["embeddings"]
+    if USE_PINECONE:
+        print(f"🌲 Fetching data from Pinecone Index: {PINECONE_INDEX_NAME}…")
+        # For visualization, we query the top 100 most recent vectors 
+        # (or just a large sample)
+        results = vector_store.query(
+            vector=[0.0] * 1536, # dummy vector for broad search
+            top_k=100,
+            include_metadata=True,
+            include_values=True
+        )
+        matches = results.matches
+        ids = [m.id for m in matches]
+        docs = [m.metadata.get("text", "") for m in matches]
+        metas = [m.metadata for m in matches]
+        embeddings = [m.values for m in matches]
+    else:
+        print("💾 Connecting to Local ChromaDB…")
+        data = vector_store.get(include=["documents", "metadatas", "embeddings"])
+        ids       = data["ids"]
+        docs      = data["documents"]
+        metas     = data["metadatas"]
+        embeddings = data["embeddings"]
 
     if not ids:
         print("⚠️  No documents found in ChromaDB. Skipping visualization.")
