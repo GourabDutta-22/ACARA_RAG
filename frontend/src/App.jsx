@@ -16,7 +16,7 @@ import PipelineVisualizer from "./PipelineVisualizer";
 import ARCPanel from "./ARCPanel";
 import UploadPanel from "./UploadPanel";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { API } from "./config";
 
 const SUGGESTED_QUERIES = [
   "What is LangGraph and how does it work?",
