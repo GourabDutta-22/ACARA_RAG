@@ -333,7 +333,7 @@ def arc_status():
 @app.post("/arc/reset")
 def reset_arc():
     """Resets ARC to default starting parameters for a new chat session."""
-    arc.reset_to_defaults()
+    arc.reset()
     return {"status": "success", "message": "ARC parameters reset to defaults."}
 
 
